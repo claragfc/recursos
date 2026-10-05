@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Construye cubos con cubitos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2F6FA; --panel:#FFFFFF; --ink:#13202C; --muted:#4F6377; --line:#CFDAE5;
+  --accent:#1B5FD1; --accent-ink:#FFFFFF; --sel:#E3EDFF;
+  --tile-a:#E9F0F7; --tile-b:#DCE6F0; --hot:rgba(27,95,209,.28); --ok:#E4F6EA; --ok-line:#2E9E5B;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1620; --panel:#16222F; --ink:#EAF0F6; --muted:#9FB2C5; --line:#2B3C4F;
+    --accent:#5B9BFF; --accent-ink:#0B1420; --sel:#1F3552;
+    --tile-a:#1B2A3A; --tile-b:#223548; --hot:rgba(91,155,255,.35); --ok:#143626; --ok-line:#4CC585;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1620; --panel:#16222F; --ink:#EAF0F6; --muted:#9FB2C5; --line:#2B3C4F;
+  --accent:#5B9BFF; --accent-ink:#0B1420; --sel:#1F3552;
+  --tile-a:#1B2A3A; --tile-b:#223548; --hot:rgba(91,155,255,.35); --ok:#143626; --ok-line:#4CC585;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+*,*::before,*::after{box-sizing:border-box;}
+body{margin:0; background:var(--bg); color:var(--ink); font-family:"Lexend",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; line-height:1.5;}
+.app{max-width:1200px; margin:0 auto; padding:20px clamp(14px,3vw,32px) 32px;}
+h1{font-size:clamp(1.5rem,3vw,2.2rem); font-weight:700; margin:0 0 4px; line-height:1.2;}
+.sub{color:var(--muted); margin:0 0 18px; font-size:clamp(1rem,1.6vw,1.2rem);}
+.grid{display:grid; grid-template-columns:minmax(0,1.6fr) minmax(290px,1fr); gap:20px; align-items:start;}
+@media (max-width:860px){ .grid{grid-template-columns:1fr;} }
+
+.stage{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:6px; max-width:100%;}
+.stage svg{display:block; width:100%; height:auto; touch-action:none; user-select:none; -webkit-user-select:none; cursor:move;}
+svg polygon[data-x], svg polygon[data-src]{cursor:grab;}
+svg.dragging, svg.dragging *{cursor:grabbing !important;}
+.tile{stroke:var(--line); stroke-width:1;}
+.tile.a{fill:var(--tile-a);} .tile.b{fill:var(--tile-b);}
+.tile.hot{fill:var(--hot);}
+.prev{fill-opacity:.55; stroke:var(--accent) !important; stroke-width:2 !important; stroke-dasharray:5 3; pointer-events:none;}
+.ghost{pointer-events:none;}
+.sl{fill:var(--ink); font:600 19px "Lexend",system-ui,sans-serif; text-anchor:middle; pointer-events:none;}
+
+.panel{display:flex; flex-direction:column; gap:16px; min-width:0;}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:16px 18px;}
+.card[data-ok="true"]{background:var(--ok); border-color:var(--ok-line);}
+.count{display:flex; align-items:baseline; gap:.5em;}
+.count b{font-size:clamp(3rem,7vw,4.6rem); line-height:1; font-weight:700;}
+.count span{font-size:1.3rem; font-weight:600;}
+.card p{margin:8px 0 0;}
+.card h2{font-size:1.05rem; margin:0 0 10px; font-weight:600;}
+.card h2.next{margin-top:16px;}
+.hint{color:var(--muted);}
+p[hidden]{display:none;}
+
+.cubes{display:grid; grid-template-columns:repeat(auto-fit,minmax(78px,1fr)); gap:8px;}
+.mk{font:inherit; font-weight:600; color:var(--ink); background:transparent; cursor:pointer; border:2px solid var(--line); border-radius:14px; padding:8px 4px; min-height:44px;}
+.mk:hover{border-color:var(--accent);}
+.row{display:flex; gap:8px; flex-wrap:wrap;}
+.chip{font:inherit; font-weight:600; cursor:pointer; color:var(--ink); background:transparent; border:2px solid var(--line); border-radius:999px; padding:10px 16px; min-height:44px;}
+.chip[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
+.chip:disabled{opacity:.45; cursor:default;}
+button:focus-visible{outline:3px solid var(--accent); outline-offset:2px;}
+.note{max-width:70ch; color:var(--muted); margin:18px 2px 0;}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Construye con cubitos</h1>
+  <p class="sub">Arrastra cubitos al tablero, gira la vista y comprueba cuándo forman un cubo.</p>
+
+  <div class="grid">
+    <section class="stage">
+      <svg id="stage" viewBox="0 0 800 640" role="img" aria-label="Tablero 3D de 7 por 7 para colocar cubitos"></svg>
+    </section>
+
+    <div class="panel">
+      <section class="card" id="info" data-ok="false">
+        <div class="count"><b id="total">0</b><span id="unit">cubitos</span></div>
+        <p id="status" aria-live="polite"></p>
+        <p id="layers" hidden></p>
+        <p class="hint" id="hint"></p>
+      </section>
+
+      <section class="card">
+        <h2>Vista</h2>
+        <div class="row">
+          <button type="button" class="chip" id="rotl" aria-label="Girar a la izquierda">Girar ↺</button>
+          <button type="button" class="chip" id="rotr" aria-label="Girar a la derecha">Girar ↻</button>
+          <button type="button" class="chip" id="home">Vista inicial</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button type="button" class="chip" id="sep" aria-pressed="false">Separar cubitos</button>
+          <button type="button" class="chip" id="colr" aria-pressed="true">Colorear capas</button>
+        </div>
+        <p class="hint" id="sephint" hidden>Vista separada: solo se puede mirar y girar. Pulsa «Separar cubitos» otra vez para seguir moviéndolos.</p>
+
+        <h2 class="next">Montar un cubo de lado</h2>
+        <div class="cubes" id="cubes"></div>
+
+        <h2 class="next">Edición</h2>
+        <div class="row">
+          <button type="button" class="chip" id="col" aria-pressed="false">Mover columnas enteras</button>
+          <button type="button" class="chip" id="undo">Deshacer</button>
+          <button type="button" class="chip" id="clear">Vaciar tablero</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <p class="note">Arrastra un espacio vacío para girar y inclinar el tablero, o usa los botones para girar de 90 en 90. Los cubitos encajan solos en la rejilla y se apoyan en el suelo o en otro cubito. Para quitar uno, arrástralo fuera del tablero.</p>
+</div>
+
+<script>
+(function(){
+  var N=7, S=36, CX=470, CY=410;
+  var KX=Math.sqrt(1.5);
+  var HUES=[215,28,145,320,48,180,260];
+  var h=new Array(N*N).fill(0);
+  var history=[];
+  var drag=null, vdrag=null, rafId=0;
+  var opts={col:false, colored:true, sep:false};
+  var view={a:Math.PI/4, p:0.6155, g:1};
+  var aim={a:Math.PI/4};
+  var svg=document.getElementById('stage');
+  var reduce=false;
+  try{ reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+
+  function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+
+  function mkProj(X0,Y0,s,a,phi,cx,cy){
+    var ca=Math.cos(a), sa=Math.sin(a), Kx=KX*s, Ky=Kx*Math.sin(phi), Kz=Kx*Math.cos(phi);
+    function P(x,y,z){
+      var dx=x-cx, dy=y-cy;
+      return [X0+(dx*ca-dy*sa)*Kx, Y0+(dx*sa+dy*ca)*Ky-z*Kz];
+    }
+    P.s=function(x,y,z){ var q=P(x,y,z); return q[0].toFixed(1)+','+q[1].toFixed(1); };
+    P.depth=function(x,y){ return (x-cx)*sa+(y-cy)*ca; };
+    P.inv=function(sx,sy){
+      var hh=(sx-X0)/Kx, dd=(sy-Y0)/Ky;
+      return [cx+hh*ca+dd*sa, cy-hh*sa+dd*ca];
+    };
+    P.ca=ca; P.sa=sa; P.Kz=Kz; P.sz=s;
+    return P;
+  }
+  function boardProj(){
+    var se=S*N/((N-1)*view.g+1);
+    return mkProj(CX,CY,se,view.a,view.p,N/2,N/2);
+  }
+
+  function hueOf(z){ return opts.colored?HUES[z%HUES.length]:HUES[0]; }
+
+  function cube(Pf,x,y,z,hue,vis,cls,data){
+    var sgx=Pf.sa>=0?1:-1, sgy=Pf.ca>=0?1:-1;
+    var sw=(Pf.sz*0.035).toFixed(2);
+    var st=' stroke="hsla('+hue+',50%,18%,.55)" stroke-width="'+sw+'" stroke-linejoin="round"';
+    var c=cls?' class="'+cls+'"':'';
+    var o='', L;
+    if(vis.x){
+      var xf=sgx>0?x+1:x;
+      L=(51-12*sgx*Pf.ca).toFixed(0);
+      o+='<polygon'+c+data+' points="'+Pf.s(xf,y,z)+' '+Pf.s(xf,y+1,z)+' '+Pf.s(xf,y+1,z+1)+' '+Pf.s(xf,y,z+1)+'" fill="hsl('+hue+',64%,'+L+'%)"'+st+'/>';
+    }
+    if(vis.y){
+      var yf=sgy>0?y+1:y;
+      L=(51+12*sgy*Pf.sa).toFixed(0);
+      o+='<polygon'+c+data+' points="'+Pf.s(x,yf,z)+' '+Pf.s(x+1,yf,z)+' '+Pf.s(x+1,yf,z+1)+' '+Pf.s(x,yf,z+1)+'" fill="hsl('+hue+',64%,'+L+'%)"'+st+'/>';
+    }
+    if(vis.t){
+      o+='<polygon'+c+data+' points="'+Pf.s(x,y,z+1)+' '+Pf.s(x+1,y,z+1)+' '+Pf.s(x+1,y+1,z+1)+' '+Pf.s(x,y+1,z+1)+'" fill="hsl('+hue+',72%,74%)"'+st+'/>';
+    }
+    return o;
+  }
+
+  function floor(Pf,g,tgt){
+    var f=function(u){ return (u-N/2)*g+N/2; };
+    var o='';
+    for(var x=0;x<N;x++){
+      for(var y=0;y<N;y++){
+        var cls='tile '+(((x+y)%2)?'b':'a');
+        if(tgt&&tgt.kind==='col'&&tgt.x===x&&tgt.y===y) cls+=' hot';
+        o+='<polygon class="'+cls+'" points="'+Pf.s(f(x),f(y),0)+' '+Pf.s(f(x+1),f(y),0)+' '+Pf.s(f(x+1),f(y+1),0)+' '+Pf.s(f(x),f(y+1),0)+'"/>';
+      }
+    }
+    return o;
+  }
+
+  function cubesSVG(hh,prev,Pf,g){
+    var sgx=Pf.sa>=0?1:-1, sgy=Pf.ca>=0?1:-1;
+    var expl=g>1.001;
+    var cols=[], x, y, i, z;
+    for(x=0;x<N;x++) for(y=0;y<N;y++){
+      if(hh[x*N+y]>0) cols.push({x:x,y:y,d:Pf.depth(x+0.5,y+0.5)});
+    }
+    cols.sort(function(a,b){ return a.d-b.d; });
+    var o='';
+    for(i=0;i<cols.length;i++){
+      x=cols[i].x; y=cols[i].y;
+      var top=hh[x*N+y];
+      for(z=0;z<top;z++){
+        var vis={t:expl||z===top-1, x:true, y:true};
+        if(!expl){
+          var nx=x+sgx, ny=y+sgy;
+          vis.x=!(nx>=0&&nx<N&&hh[nx*N+y]>z);
+          vis.y=!(ny>=0&&ny<N&&hh[x*N+ny]>z);
+        }
+        if(!(vis.t||vis.x||vis.y)) continue;
+        var X=(x+0.5-N/2)*g+N/2-0.5, Y=(y+0.5-N/2)*g+N/2-0.5, Z=z*g;
+        var isPrev=prev&&prev.x===x&&prev.y===y&&z>=prev.z0;
+        var data=isPrev?'':' data-x="'+x+'" data-y="'+y+'"';
+        o+=cube(Pf,X,Y,Z,hueOf(z),vis,isPrev?'prev':'',data);
+      }
+    }
+    return o;
+  }
+
+  function dispenser(){
+    var Pd=mkProj(100,530,46,view.a,view.p,0.5,0.5);
+    var o=cube(Pd,0,0,0,215,{t:true,x:true,y:true},'',' data-src="1"');
+    o+='<text class="sl" x="100" y="592">Arrastra</text><text class="sl" x="100" y="616">un cubito</text>';
+    return o;
+  }
+
+  function ghost(d,tgt,Pf){
+    var good=tgt&&tgt.kind==='col'&&tgt.ok;
+    var z0=good?h[tgt.x*N+tgt.y]:0;
+    var Pg=mkProj(d.px,d.py+0.5*Pf.Kz,Pf.sz,view.a,view.p,0.5,0.5);
+    var o='<g class="ghost" opacity="'+(good?0.92:0.5)+'">';
+    var n=Math.min(d.count,N);
+    for(var i=0;i<n;i++) o+=cube(Pg,0,0,i,hueOf(z0+i),{t:true,x:true,y:true},'ghost','');
+    return o+'</g>';
+  }
+
+  function toPoint(e){
+    var pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+    var m=svg.getScreenCTM(); if(!m) return {x:0,y:0};
+    var q=pt.matrixTransform(m.inverse());
+    return {x:q.x,y:q.y};
+  }
+
+  function inQuad(px,py,q){
+    var sg=0;
+    for(var i=0;i<4;i++){
+      var a=q[i], b=q[(i+1)%4];
+      var cr=(b[0]-a[0])*(py-a[1])-(b[1]-a[1])*(px-a[0]);
+      if(cr!==0){
+        var s2=cr>0?1:-1;
+        if(sg===0) sg=s2; else if(sg!==s2) return false;
+      }
+    }
+    return true;
+  }
+
+  function findTarget(px,py,count){
+    var Pf=boardProj(), cols=[], x, y, i;
+    for(x=0;x<N;x++) for(y=0;y<N;y++) cols.push({x:x,y:y,d:Pf.depth(x+0.5,y+0.5)});
+    cols.sort(function(a,b){ return b.d-a.d; });
+    for(i=0;i<cols.length;i++){
+      var c=cols[i], hh=h[c.x*N+c.y];
+      var q=[Pf(c.x,c.y,hh),Pf(c.x+1,c.y,hh),Pf(c.x+1,c.y+1,hh),Pf(c.x,c.y+1,hh)];
+      if(inQuad(px,py,q)) return {kind:'col',x:c.x,y:c.y,ok:(hh+count<=N)};
+    }
+    var w=Pf.inv(px,py), fx=Math.floor(w[0]), fy=Math.floor(w[1]);
+    if(fx>=0&&fx<N&&fy>=0&&fy<N) return {kind:'col',x:fx,y:fy,ok:(h[fx*N+fy]+count<=N)};
+    return {kind:'out'};
+  }
+
+  function canInteract(){ return !opts.sep && view.g<=1.001; }
+
+  function render(){
+    var Pf=boardProj(), g=view.g;
+    var tgt=null, prev=null, hh=h;
+    if(drag){
+      tgt=findTarget(drag.px,drag.py+0.5*Pf.Kz,drag.count);
+      if(tgt.kind==='col'&&tgt.ok){
+        hh=h.slice();
+        prev={x:tgt.x,y:tgt.y,z0:h[tgt.x*N+tgt.y]};
+        hh[tgt.x*N+tgt.y]+=drag.count;
+      }
+    }
+    var o=floor(Pf,g,tgt)+cubesSVG(hh,prev,Pf,g);
+    if(!opts.sep&&g<=1.001) o+=dispenser();
+    if(drag) o+=ghost(drag,tgt,Pf);
+    svg.innerHTML=o;
+  }
+  function schedule(){ if(!rafId) rafId=requestAnimationFrame(function(){ rafId=0; render(); }); }
+
+  // Animaciones de la vista
+  var tw={};
+  function tween(key,to,ms){
+    cancelAnimationFrame(tw[key]||0);
+    if(reduce){ view[key]=to; render(); return; }
+    var from=view[key], t0=performance.now();
+    function step(t){
+      var p=Math.min(1,(t-t0)/ms), e=1-Math.pow(1-p,3);
+      view[key]=from+(to-from)*e;
+      render();
+      if(p<1) tw[key]=requestAnimationFrame(step);
+    }
+    tw[key]=requestAnimationFrame(step);
+  }
+
+  function stats(){
+    var T=0,minx=N,maxx=-1,miny=N,maxy=-1,maxh=0,x,y,v;
+    for(x=0;x<N;x++) for(y=0;y<N;y++){
+      v=h[x*N+y];
+      if(v>0){ T+=v; if(x<minx)minx=x; if(x>maxx)maxx=x; if(y<miny)miny=y; if(y>maxy)maxy=y; if(v>maxh)maxh=v; }
+    }
+    if(T===0) return {T:0};
+    var w=maxx-minx+1, d=maxy-miny+1, uni=true;
+    for(x=minx;x<=maxx;x++) for(y=miny;y<=maxy;y++) if(h[x*N+y]!==maxh) uni=false;
+    return {T:T,w:w,d:d,hh:maxh,uni:uni,perfect:uni&&w===d&&d===maxh};
+  }
+
+  function pl(n,one,many){ return n===1?one:many; }
+
+  function readout(){
+    var s=stats(), st, hint='';
+    document.getElementById('total').textContent=s.T;
+    document.getElementById('unit').textContent=pl(s.T,'cubito','cubitos');
+    document.getElementById('info').setAttribute('data-ok',String(!!s.perfect));
+    if(s.T===0){
+      st='El tablero está vacío. Arrastra cubitos desde la izquierda.';
+    } else if(s.perfect){
+      st='¡Es un cubo! Lado '+s.w+': '+s.w+' × '+s.w+' × '+s.w+' = '+s.w+'³ = '+s.T+'.';
+      var nx=s.w+1;
+      hint=nx<=N?'El siguiente cubo, de lado '+nx+', necesita '+nx+'³ = '+(nx*nx*nx)+' cubitos: te '+pl(nx*nx*nx-s.T,'falta','faltan')+' '+(nx*nx*nx-s.T)+'.':'Es el cubo más grande que cabe en el tablero.';
+    } else {
+      if(s.uni) st='Es una caja de '+s.w+' × '+s.d+' × '+s.hh+' = '+s.T+'. Para ser un cubo, las tres medidas tienen que ser iguales.';
+      else st='Tienes '+s.T+' '+pl(s.T,'cubito','cubitos')+', pero la figura no es una caja completa: hay huecos o escalones.';
+      var m=1; while(m*m*m<s.T) m++;
+      var need=m*m*m;
+      if(need===s.T) hint='Con '+s.T+' cubitos se puede formar un cubo de lado '+m+'. ¿Cómo los colocarías?';
+      else hint='El siguiente cubo tiene lado '+m+' y necesita '+m+'³ = '+need+' cubitos: te '+pl(need-s.T,'falta','faltan')+' '+(need-s.T)+'.';
+    }
+    document.getElementById('status').textContent=st;
+    document.getElementById('hint').textContent=hint;
+
+    var lay=document.getElementById('layers');
+    if(opts.sep&&s.T>0){
+      var parts=[], z, x, y, cnt;
+      for(z=0;z<N;z++){
+        cnt=0;
+        for(x=0;x<N;x++) for(y=0;y<N;y++) if(h[x*N+y]>z) cnt++;
+        if(cnt>0) parts.push(cnt);
+      }
+      lay.textContent='Por capas, de abajo arriba: '+parts.join(' + ')+' = '+s.T+'.';
+      lay.hidden=false;
+    } else lay.hidden=true;
+
+    document.getElementById('sephint').hidden=!opts.sep;
+    document.getElementById('undo').disabled=history.length===0;
+  }
+
+  function sync(){ render(); readout(); }
+
+  function same(a,b){ for(var i=0;i<a.length;i++) if(a[i]!==b[i]) return false; return true; }
+  function pushHistory(snap){ history.push(snap); if(history.length>100) history.shift(); }
+
+  svg.addEventListener('pointerdown',function(e){
+    if(drag||vdrag) return;
+    var t=e.target;
+    if(!t||!t.getAttribute) return;
+    var p=toPoint(e);
+    var src=t.getAttribute('data-src');
+    var xs=t.getAttribute('data-x');
+    if(canInteract()&&src){
+      drag={board:false,count:1,px:p.x,py:p.y,prev:h.slice()};
+    } else if(canInteract()&&xs!==null){
+      var x=+xs, y=+t.getAttribute('data-y'), top=h[x*N+y];
+      if(top<1) return;
+      var cnt=opts.col?top:1;
+      drag={board:true,count:cnt,px:p.x,py:p.y,prev:h.slice()};
+      h[x*N+y]-=cnt;
+    } else {
+      cancelAnimationFrame(tw.a||0); cancelAnimationFrame(tw.p||0);
+      vdrag={x:p.x,y:p.y,a:view.a,p:view.p};
+    }
+    try{ svg.setPointerCapture(e.pointerId); }catch(err){}
+    e.preventDefault();
+    svg.classList.add('dragging');
+    render();
+  });
+
+  svg.addEventListener('pointermove',function(e){
+    var p;
+    if(drag){ p=toPoint(e); drag.px=p.x; drag.py=p.y; schedule(); }
+    else if(vdrag){
+      p=toPoint(e);
+      view.a=vdrag.a-(p.x-vdrag.x)*0.009;
+      view.p=clamp(vdrag.p+(p.y-vdrag.y)*0.006,0.35,1.3);
+      schedule();
+    }
+  });
+
+  function finish(commit){
+    var d=drag; drag=null;
+    svg.classList.remove('dragging');
+    if(commit){
+      var Pf=boardProj();
+      var t=findTarget(d.px,d.py+0.5*Pf.Kz,d.count);
+      if(t.kind==='col'&&t.ok){ h[t.x*N+t.y]+=d.count; }
+      else if(t.kind==='out'){ if(!d.board) h=d.prev.slice(); }
+      else { h=d.prev.slice(); }
+    } else { h=d.prev.slice(); }
+    if(!same(h,d.prev)) pushHistory(d.prev);
+    sync();
+  }
+  function endView(){
+    vdrag=null; aim.a=view.a;
+    svg.classList.remove('dragging');
+  }
+  svg.addEventListener('pointerup',function(){ if(drag) finish(true); else if(vdrag) endView(); });
+  svg.addEventListener('pointercancel',function(){ if(drag) finish(false); else if(vdrag) endView(); });
+
+  // Montar cubos de lado n
+  var box=document.getElementById('cubes');
+  for(var n=1;n<=N;n++){
+    (function(n){
+      var b=document.createElement('button');
+      b.type='button'; b.className='mk';
+      b.textContent=n+'³ = '+(n*n*n);
+      b.setAttribute('aria-label','Montar cubo de lado '+n+' ('+(n*n*n)+' cubitos)');
+      b.addEventListener('click',function(){
+        var snap=h.slice();
+        h=new Array(N*N).fill(0);
+        var off=Math.floor((N-n)/2);
+        for(var x=0;x<n;x++) for(var y=0;y<n;y++) h[(off+x)*N+off+y]=n;
+        if(!same(h,snap)) pushHistory(snap);
+        sync();
+      });
+      box.appendChild(b);
+    })(n);
+  }
+
+  // Vista
+  document.getElementById('rotl').addEventListener('click',function(){
+    aim.a=aim.a-Math.PI/2; tween('a',aim.a,400);
+  });
+  document.getElementById('rotr').addEventListener('click',function(){
+    aim.a=aim.a+Math.PI/2; tween('a',aim.a,400);
+  });
+  document.getElementById('home').addEventListener('click',function(){
+    var k=Math.round((view.a-Math.PI/4)/(2*Math.PI));
+    aim.a=Math.PI/4+2*Math.PI*k;
+    tween('a',aim.a,500); tween('p',0.6155,500);
+  });
+
+  var sepBtn=document.getElementById('sep');
+  sepBtn.addEventListener('click',function(){
+    opts.sep=!opts.sep;
+    sepBtn.setAttribute('aria-pressed',String(opts.sep));
+    tween('g',opts.sep?1.45:1,500);
+    readout();
+  });
+
+  var colrBtn=document.getElementById('colr');
+  colrBtn.addEventListener('click',function(){
+    opts.colored=!opts.colored; colrBtn.setAttribute('aria-pressed',String(opts.colored)); render();
+  });
+  var colBtn=document.getElementById('col');
+  colBtn.addEventListener('click',function(){
+    opts.col=!opts.col; colBtn.setAttribute('aria-pressed',String(opts.col));
+  });
+  document.getElementById('undo').addEventListener('click',function(){
+    if(!history.length) return;
+    h=history.pop(); sync();
+  });
+  document.getElementById('clear').addEventListener('click',function(){
+    var snap=h.slice();
+    h=new Array(N*N).fill(0);
+    if(!same(h,snap)) pushHistory(snap);
+    sync();
+  });
+
+  sync();
+})();
+</script>
+</body>
+</html>
