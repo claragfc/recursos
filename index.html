@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recursos de 5º y 6º de Primaria</title>
+<script>document.documentElement.classList.add('js');</script>
 <style>
   :root {
     --fondo: #f6f4ee;
@@ -36,6 +37,48 @@
   h3 { margin: 20px 0 10px; font-size: 1.05rem; color: var(--suave); font-weight: 600; }
   .mates { --color: var(--mates); }
   .lengua { --color: var(--lengua); }
+
+  /* Pestañas (solo se muestran si funciona JavaScript) */
+  .pestanas {
+    display: none;
+    gap: 6px;
+    border-bottom: 2px solid var(--borde);
+  }
+  .js .pestanas { display: flex; }
+  .pestanas button {
+    font: inherit;
+    font-weight: 600;
+    font-size: 1.1rem;
+    padding: 12px 24px;
+    margin-bottom: -2px;
+    border: 0;
+    border-bottom: 4px solid transparent;
+    border-radius: 10px 10px 0 0;
+    background: none;
+    color: var(--suave);
+    cursor: pointer;
+  }
+  .pestanas button:hover { color: var(--color); }
+  .pestanas button[aria-selected="true"] {
+    background: var(--tarjeta);
+    color: var(--color);
+    border-bottom-color: var(--color);
+  }
+  .pestanas button:focus-visible { outline: 3px solid var(--color); outline-offset: 2px; }
+
+  /* Con pestañas, el título de cada asignatura es redundante: se queda solo para lectores de pantalla */
+  .js main h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
   ul.recursos {
     list-style: none;
     margin: 0;
@@ -81,33 +124,45 @@
     <p>Actividades interactivas para practicar en clase y en casa.</p>
   </header>
 
+  <div class="pestanas" role="tablist" aria-label="Asignaturas">
+    <button type="button" role="tab" id="tab-matematicas" class="mates" aria-controls="matematicas" aria-selected="true">Matemáticas</button>
+    <button type="button" role="tab" id="tab-lengua" class="lengua" aria-controls="lengua" aria-selected="false" tabindex="-1">Lengua</button>
+  </div>
+
   <main>
 
-    <section class="mates">
+    <section id="matematicas" class="mates" role="tabpanel" aria-labelledby="tab-matematicas">
       <h2>Matemáticas</h2>
 
       <h3>5º de Primaria</h3>
-      <p class="vacio">Próximamente.</p>
+      <ul class="recursos">
+        <li>
+          <a href="matematicas/5-primaria/reloj-calculadora/reloj-calculadora.html">
+            <strong>Reloj y calculadora de tiempos</strong>
+            <span>Medida del tiempo</span>
+          </a>
+        </li>
+      </ul>
 
       <h3>6º de Primaria</h3>
       <ul class="recursos">
-	  <li>
+        <li>
           <a href="matematicas/6-primaria/potencias-cuadrados/constructor-cuadrados.html">
             <strong>Constructor de cuadrados</strong>
-            <span>Potencias y cubos</span>
+            <span>Potencias</span>
           </a>
         </li>
         <li>
           <a href="matematicas/6-primaria/potencias-cubos/constructor-cubos-3d.html">
             <strong>Constructor de cubos 3D</strong>
-            <span>Potencias y cubos</span>
+            <span>Potencias</span>
           </a>
         </li>
         <!-- Para añadir otro recurso, copia un bloque <li>...</li> y cambia el enlace, el título y el tema. -->
       </ul>
     </section>
 
-    <section class="lengua">
+    <section id="lengua" class="lengua" role="tabpanel" aria-labelledby="tab-lengua">
       <h2>Lengua</h2>
 
       <h3>5º de Primaria</h3>
@@ -125,5 +180,40 @@
   </footer>
 
 </div>
+
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  var paneles = tabs.map(function (t) { return document.getElementById(t.getAttribute('aria-controls')); });
+
+  function mostrar(i, enfocar, guardar) {
+    tabs.forEach(function (t, j) {
+      var activa = j === i;
+      t.setAttribute('aria-selected', activa ? 'true' : 'false');
+      t.tabIndex = activa ? 0 : -1;
+      paneles[j].hidden = !activa;
+    });
+    if (enfocar) tabs[i].focus();
+    if (guardar && window.history && history.replaceState) history.replaceState(null, '', '#' + paneles[i].id);
+  }
+
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { mostrar(i, false, true); });
+    t.addEventListener('keydown', function (e) {
+      var n = tabs.length, nuevo = null;
+      if (e.key === 'ArrowRight') nuevo = (i + 1) % n;
+      else if (e.key === 'ArrowLeft') nuevo = (i - 1 + n) % n;
+      else if (e.key === 'Home') nuevo = 0;
+      else if (e.key === 'End') nuevo = n - 1;
+      if (nuevo !== null) { e.preventDefault(); mostrar(nuevo, true, true); }
+    });
+  });
+
+  // Se puede abrir directamente una pestaña con #lengua o #matematicas
+  var inicio = 0, hash = location.hash.slice(1);
+  paneles.forEach(function (p, i) { if (p.id === hash) inicio = i; });
+  mostrar(inicio, false, false);
+})();
+</script>
 </body>
 </html>

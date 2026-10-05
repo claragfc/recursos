@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reloj y Calculadora de Tiempos</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#f4f6f0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
+  #app{display:flex;gap:12px;width:100%;max-width:1100px;align-items:stretch}
+  .block{background:#fff;border:1px solid #ddd;border-radius:14px;padding:14px;display:flex;flex-direction:column;align-items:center;flex:1 1 0}
+  .block-title{font-size:15px;font-weight:500;color:#666;margin-bottom:10px;text-align:center}
+  .hint{font-size:12px;color:#888;margin-top:8px;text-align:center}
+  canvas#clock{cursor:grab;display:block;touch-action:none}
+  .digital-wrap{display:flex;align-items:center;gap:4px;user-select:none;margin:auto 0}
+  .dunit{display:flex;flex-direction:column;align-items:center;gap:2px}
+  .dunit .arr{font-size:18px;cursor:pointer;color:#888;line-height:1;padding:6px 14px;border-radius:6px;transition:background .15s;background:none;border:0;font-family:inherit}
+  .dunit .arr:hover{background:#f0f0f0}
+  .dnum{font-size:44px;font-weight:500;color:#111;min-width:60px;text-align:center;cursor:ns-resize;border-radius:8px;padding:2px 4px;transition:background .15s;touch-action:none}
+  .dnum:hover{background:#f0f0f0}
+  .dsep{font-size:40px;font-weight:500;color:#aaa;line-height:1;margin-bottom:10px}
+  .dunit label{font-size:11px;color:#aaa}
+  .dnum:focus-visible,.dunit .arr:focus-visible,.opbtn:focus-visible,.calc-btn:focus-visible,.send-btn:focus-visible{outline:3px solid #378ADD;outline-offset:2px}
+  #b3{align-items:stretch}
+  .calc-inner{display:flex;flex-direction:column;height:100%}
+  .operacion{background:#f7f7f5;border-radius:10px;padding:10px 14px;margin-bottom:8px}
+  .op-row{display:flex;align-items:center;gap:0}
+  .op-row .lbl{font-size:13px;color:#888;width:22px;flex-shrink:0}
+  .op-row .op-sym{font-size:22px;font-weight:500;color:#222;width:22px;text-align:center;flex-shrink:0}
+  .fields{display:flex;align-items:center;gap:4px}
+  .tfield-wrap{display:flex;align-items:center;gap:3px}
+  .tfield{font-size:20px;font-weight:500;width:48px;border:1px solid #ccc;border-radius:7px;padding:4px 0;color:#111;background:#fff;text-align:center;font-family:monospace}
+  .tfield:focus{outline:none;border-color:#378ADD}
+  .tunit{font-size:13px;color:#888;width:26px}
+  .op-divider{height:1.5px;background:#ddd;margin:8px 0 6px}
+  .op-buttons{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .opbtn{font-size:20px;font-weight:500;padding:4px 14px;border:1px solid #ccc;border-radius:8px;cursor:pointer;background:#f0f0f0;color:#111;transition:background .15s}
+  .opbtn.active{background:#B5D4F4;color:#042C53;border-color:#378ADD}
+  .calc-btn{font-size:14px;padding:6px 16px;border:1px solid #ccc;border-radius:8px;cursor:pointer;background:#f0f0f0;color:#111}
+  .calc-btn:hover{background:#e4e4e4}
+  .steps-box{flex:1;overflow-y:auto;background:#f7f7f5;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.75;color:#222;min-height:100px}
+  .step-line{margin-bottom:2px}
+  .step-line.highlight{font-size:15px;font-weight:500;color:#042C53;background:#B5D4F4;border-radius:6px;padding:4px 8px;margin-top:6px}
+  .step-line.borrow{color:#854F0B;background:#FAEEDA;border-radius:6px;padding:2px 8px}
+  .send-btn{margin-top:8px;font-size:14px;padding:6px 18px;border:1px solid #378ADD;border-radius:8px;cursor:pointer;background:#E6F1FB;color:#042C53;font-weight:500;align-self:flex-start}
+  .send-btn:hover{background:#B5D4F4}
+  .send-btn:disabled{opacity:.4;cursor:default}
+  .foot{font-size:12px;color:#777;text-align:center}
+  .foot a{color:#555}
+
+  @media (max-width:900px){
+    body{justify-content:flex-start}
+    #app{flex-direction:column}
+    .block{flex:none;width:100%}
+    .calc-inner{height:auto}
+  }
+  @media (max-width:480px){
+    body{padding:10px}
+    .operacion{padding:10px}
+    .tfield{width:40px;font-size:18px}
+    .tunit{width:22px}
+    .dnum{font-size:36px;min-width:50px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- BLOQUE 1: Analógico -->
+  <div class="block" id="b1">
+    <div class="block-title">Reloj analógico</div>
+    <canvas id="clock" width="210" height="210" role="img" aria-label="Reloj analógico: arrastra las agujas para cambiar la hora"></canvas>
+    <p class="hint">Arrastra las agujas para cambiar la hora</p>
+  </div>
+
+  <!-- BLOQUE 2: Digital -->
+  <div class="block" id="b2">
+    <div class="block-title">Reloj digital</div>
+    <div class="digital-wrap">
+      <div class="dunit">
+        <button type="button" class="arr" id="hup" aria-label="Subir una hora">▲</button>
+        <div class="dnum" id="dh" tabindex="0" role="spinbutton" aria-label="Horas" aria-valuemin="0" aria-valuemax="23">00</div>
+        <button type="button" class="arr" id="hdn" aria-label="Bajar una hora">▼</button>
+        <label>horas</label>
+      </div>
+      <div class="dsep">:</div>
+      <div class="dunit">
+        <button type="button" class="arr" id="mup" aria-label="Subir un minuto">▲</button>
+        <div class="dnum" id="dm" tabindex="0" role="spinbutton" aria-label="Minutos" aria-valuemin="0" aria-valuemax="59">00</div>
+        <button type="button" class="arr" id="mdn" aria-label="Bajar un minuto">▼</button>
+        <label>minutos</label>
+      </div>
+      <div class="dsep">:</div>
+      <div class="dunit">
+        <button type="button" class="arr" id="sup" aria-label="Subir un segundo">▲</button>
+        <div class="dnum" id="ds" tabindex="0" role="spinbutton" aria-label="Segundos" aria-valuemin="0" aria-valuemax="59">00</div>
+        <button type="button" class="arr" id="sdn" aria-label="Bajar un segundo">▼</button>
+        <label>segundos</label>
+      </div>
+    </div>
+    <p class="hint">Usa las flechas o arrastra los números hacia arriba y hacia abajo</p>
+  </div>
+
+  <!-- BLOQUE 3: Calculadora -->
+  <div class="block" id="b3">
+    <div class="block-title">Calculadora de tiempos</div>
+    <div class="calc-inner">
+      <div class="operacion">
+        <div class="op-row">
+          <span class="lbl">①</span>
+          <div class="fields">
+            <div class="tfield-wrap"><input class="tfield" id="a_h" value="1" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="Tiempo 1, horas"><span class="tunit">h</span></div>
+            <div class="tfield-wrap"><input class="tfield" id="a_m" value="30" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="Tiempo 1, minutos"><span class="tunit">min</span></div>
+            <div class="tfield-wrap"><input class="tfield" id="a_s" value="00" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="Tiempo 1, segundos"><span class="tunit">s</span></div>
+          </div>
+        </div>
+        <div class="op-divider"></div>
+        <div class="op-row">
+          <span class="lbl op-sym" id="opSymbol">+</span>
+          <div class="fields">
+            <div class="tfield-wrap"><input class="tfield" id="b_h" value="0" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="Tiempo 2, horas"><span class="tunit">h</span></div>
+            <div class="tfield-wrap"><input class="tfield" id="b_m" value="45" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="Tiempo 2, minutos"><span class="tunit">min</span></div>
+            <div class="tfield-wrap"><input class="tfield" id="b_s" value="30" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="Tiempo 2, segundos"><span class="tunit">s</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="op-buttons">
+        <button class="opbtn active" id="btnSum" aria-label="Sumar">+</button>
+        <button class="opbtn" id="btnSub" aria-label="Restar">−</button>
+        <button class="calc-btn" id="calcBtn">Calcular</button>
+      </div>
+
+      <div class="steps-box" id="steps"><span style="color:#aaa">Aquí aparecerá el razonamiento paso a paso...</span></div>
+      <button class="send-btn" id="sendClock" disabled>Enviar resultado al reloj</button>
+    </div>
+  </div>
+</div>
+
+<footer class="foot">Recurso creado por Clara González Fernández · <a href="https://creativecommons.org/licenses/by/4.0/deed.es" target="_blank" rel="noopener">Licencia CC BY 4.0</a></footer>
+
+<script>
+const TWO_PI=Math.PI*2;
+let H=0,M=0,S=0;
+let resultH=-1,resultM=-1,resultS=-1;
+let op='+';
+let dragging=null,dragStartAngle=0,dragStartVal=0;
+
+const canvas=document.getElementById('clock');
+const ctx=canvas.getContext('2d');
+const cx=105,cy=105,R=98;
+
+// Nitidez en pantallas de alta resolución
+const dpr=window.devicePixelRatio||1;
+canvas.width=210*dpr;canvas.height=210*dpr;
+canvas.style.width='210px';canvas.style.height='210px';
+ctx.setTransform(dpr,0,0,dpr,0,0);
+
+function pad(n){return String(n).padStart(2,'0')}
+function updateDigital(){
+  const vals={dh:H,dm:M,ds:S};
+  for(const id in vals){
+    const el=document.getElementById(id);
+    el.textContent=pad(vals[id]);
+    el.setAttribute('aria-valuenow',vals[id]);
+  }
+}
+function drawClock(){
+  ctx.clearRect(0,0,210,210);
+  ctx.fillStyle='#EAF3DE';ctx.beginPath();ctx.arc(cx,cy,R,0,TWO_PI);ctx.fill();
+  ctx.strokeStyle='#3B6D11';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(cx,cy,R,0,TWO_PI);ctx.stroke();
+  for(let i=0;i<60;i++){
+    const a=(i/60)*TWO_PI-Math.PI/2;
+    const isMaj=i%5===0;
+    const inner=isMaj?R-20:R-12;
+    ctx.strokeStyle='#3B6D11';ctx.lineWidth=isMaj?2:1;
+    ctx.beginPath();ctx.moveTo(cx+inner*Math.cos(a),cy+inner*Math.sin(a));
+    ctx.lineTo(cx+(R-4)*Math.cos(a),cy+(R-4)*Math.sin(a));ctx.stroke();
+  }
+  ctx.fillStyle='#27500A';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  for(let i=1;i<=12;i++){
+    const a=(i/12)*TWO_PI-Math.PI/2;
+    ctx.fillText(i,cx+(R-32)*Math.cos(a),cy+(R-32)*Math.sin(a));
+  }
+  drawHand(((H%12)+M/60)/12*TWO_PI-Math.PI/2,56,7,'#27500A','h');
+  drawHand((M+S/60)/60*TWO_PI-Math.PI/2,74,4,'#185FA5','m');
+  drawHand(S/60*TWO_PI-Math.PI/2,84,2,'#A32D2D','s');
+  ctx.fillStyle='#27500A';ctx.beginPath();ctx.arc(cx,cy,5,0,TWO_PI);ctx.fill();
+}
+function drawHand(angle,len,w,color,type){
+  ctx.save();
+  ctx.strokeStyle=color;ctx.lineWidth=w;ctx.lineCap='round';
+  const ex=cx+len*Math.cos(angle),ey=cy+len*Math.sin(angle);
+  ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);ctx.stroke();
+  ctx.lineWidth=w*0.6;
+  ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+8*Math.cos(angle+Math.PI),cy+8*Math.sin(angle+Math.PI));ctx.stroke();
+  if(dragging===type){ctx.strokeStyle='rgba(0,0,0,0.18)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(ex,ey,9,0,TWO_PI);ctx.stroke();}
+  ctx.restore();
+}
+function getAngle(mx,my){return Math.atan2(my-cy,mx-cx)}
+function handHit(mx,my,angle,len,rad){const ex=cx+len*Math.cos(angle),ey=cy+len*Math.sin(angle);return Math.hypot(mx-ex,my-ey)<rad}
+function canvasPoint(e){
+  const r=canvas.getBoundingClientRect();
+  return{x:(e.clientX-r.left)*210/r.width,y:(e.clientY-r.top)*210/r.height};
+}
+
+// Agujas: ratón, dedo o lápiz digital (eventos de puntero)
+canvas.addEventListener('pointerdown',e=>{
+  const p=canvasPoint(e);
+  const rad=e.pointerType==='touch'?22:14;
+  const sa=(S/60)*TWO_PI-Math.PI/2,ma=(M+S/60)/60*TWO_PI-Math.PI/2,ha=((H%12)+M/60)/12*TWO_PI-Math.PI/2;
+  if(handHit(p.x,p.y,sa,84,rad)){dragging='s';dragStartVal=S;}
+  else if(handHit(p.x,p.y,ma,74,rad)){dragging='m';dragStartVal=M;}
+  else if(handHit(p.x,p.y,ha,56,rad)){dragging='h';dragStartVal=H;}
+  else return;
+  dragStartAngle=getAngle(p.x,p.y);
+  try{canvas.setPointerCapture(e.pointerId);}catch(err){}
+  e.preventDefault();
+  drawClock();
+});
+canvas.addEventListener('pointermove',e=>{
+  if(!dragging)return;
+  const p=canvasPoint(e);
+  const a=getAngle(p.x,p.y);
+  let da=a-dragStartAngle;
+  if(da>Math.PI)da-=TWO_PI;if(da<-Math.PI)da+=TWO_PI;
+  if(dragging==='s'){S=((dragStartVal+Math.round(da/TWO_PI*60))%60+60)%60;}
+  else if(dragging==='m'){M=((dragStartVal+Math.round(da/TWO_PI*60))%60+60)%60;}
+  else{H=((dragStartVal+Math.round(da/TWO_PI*12))%24+24)%24;}
+  updateDigital();drawClock();
+});
+function endDrag(){dragging=null;drawClock();}
+canvas.addEventListener('pointerup',endDrag);
+canvas.addEventListener('pointercancel',endDrag);
+
+// Reloj digital
+function getUnit(u){return u==='h'?H:u==='m'?M:S}
+function setUnit(unit,v){
+  if(unit==='h')H=((v%24)+24)%24;
+  else if(unit==='m')M=((v%60)+60)%60;
+  else S=((v%60)+60)%60;
+  updateDigital();drawClock();
+}
+function adjUnit(unit,delta){setUnit(unit,getUnit(unit)+delta)}
+document.getElementById('hup').onclick=()=>adjUnit('h',1);document.getElementById('hdn').onclick=()=>adjUnit('h',-1);
+document.getElementById('mup').onclick=()=>adjUnit('m',1);document.getElementById('mdn').onclick=()=>adjUnit('m',-1);
+document.getElementById('sup').onclick=()=>adjUnit('s',1);document.getElementById('sdn').onclick=()=>adjUnit('s',-1);
+
+['dh','dm','ds'].forEach(id=>{
+  const el=document.getElementById(id);
+  const unit=id==='dh'?'h':id==='dm'?'m':'s';
+  let active=false,sy=0,sv=0;
+  el.addEventListener('pointerdown',ev=>{
+    active=true;sy=ev.clientY;sv=getUnit(unit);
+    try{el.setPointerCapture(ev.pointerId);}catch(err){}
+  });
+  el.addEventListener('pointermove',ev=>{
+    if(!active)return;
+    setUnit(unit,sv+Math.round((sy-ev.clientY)/8));
+  });
+  const stop=()=>{active=false;};
+  el.addEventListener('pointerup',stop);
+  el.addEventListener('pointercancel',stop);
+  el.addEventListener('keydown',ev=>{
+    if(ev.key==='ArrowUp'){ev.preventDefault();adjUnit(unit,1);}
+    else if(ev.key==='ArrowDown'){ev.preventDefault();adjUnit(unit,-1);}
+  });
+});
+
+// Calculadora
+const btnSum=document.getElementById('btnSum'),btnSub=document.getElementById('btnSub');
+btnSum.onclick=()=>{op='+';btnSum.classList.add('active');btnSub.classList.remove('active');document.getElementById('opSymbol').textContent='+';};
+btnSub.onclick=()=>{op='-';btnSub.classList.add('active');btnSum.classList.remove('active');document.getElementById('opSymbol').textContent='−';};
+
+// Solo cifras; horas de 0 a 23, minutos y segundos de 0 a 59
+const LIMITS={h:23,m:59,s:59};
+document.querySelectorAll('.tfield').forEach(inp=>{
+  const max=LIMITS[inp.id.slice(-1)];
+  inp.addEventListener('input',()=>{
+    let v=inp.value.replace(/\D/g,'').slice(0,2);
+    if(v!==''&&parseInt(v,10)>max)v=String(max);
+    inp.value=v;
+  });
+  inp.addEventListener('focus',()=>inp.select());
+  inp.addEventListener('blur',()=>{if(inp.value==='')inp.value='0';});
+});
+
+function getFields(pfx){
+  const val=(u)=>Math.min(parseInt(document.getElementById(pfx+'_'+u).value,10)||0,LIMITS[u]);
+  return{h:val('h'),m:val('m'),s:val('s')};
+}
+function addStep(box,text,cls=''){
+  const d=document.createElement('div');d.className='step-line'+(cls?' '+cls:'');d.textContent=text;box.appendChild(d);
+}
+
+document.getElementById('calcBtn').onclick=()=>{
+  const box=document.getElementById('steps');box.innerHTML='';
+  const a=getFields('a'),b=getFields('b');
+  document.getElementById('sendClock').disabled=true;
+  resultH=resultM=resultS=-1;
+
+  if(op==='+'){
+    addStep(box,`Tiempo ① : ${a.h} h  ${pad(a.m)} min  ${pad(a.s)} s`);
+    addStep(box,`Tiempo ② : ${b.h} h  ${pad(b.m)} min  ${pad(b.s)} s`);
+    addStep(box,'');
+    addStep(box,'Sumamos unidad a unidad, empezando por los segundos:');
+    let rs=a.s+b.s,rm=a.m+b.m,rh=a.h+b.h,days=0;
+    addStep(box,`  Segundos: ${a.s} + ${b.s} = ${rs}`);
+    if(rs>=60){const c=Math.floor(rs/60),re=rs%60;addStep(box,`  ${rs} s = ${c} min y ${re} s → llevamos ${c} min`);rm+=c;rs=re;}
+    const carrym=rm-a.m-b.m;
+    addStep(box,`  Minutos: ${a.m} + ${b.m}${carrym?` + ${carrym} (llevados)`:''} = ${rm}`);
+    if(rm>=60){const c=Math.floor(rm/60),re=rm%60;addStep(box,`  ${rm} min = ${c} h y ${re} min → llevamos ${c} h`);rh+=c;rm=re;}
+    const carryh=rh-a.h-b.h;
+    addStep(box,`  Horas: ${a.h} + ${b.h}${carryh?` + ${carryh} (llevadas)`:''} = ${rh}`);
+    if(rh>=24){days=Math.floor(rh/24);const re=rh%24;addStep(box,`  ${rh} h = ${days} día${days>1?'s':''} y ${re} h (en el reloj solo caben 24 h)`);rh=re;}
+    addStep(box,'');
+    const dayTxt=days>0?`${days} día${days>1?'s':''}  `:'';
+    addStep(box,`Resultado: ${dayTxt}${pad(rh)} h  ${pad(rm)} min  ${pad(rs)} s`,'highlight');
+    if(days>0)addStep(box,'Al enviarlo al reloj solo se verá la hora del día.');
+    resultH=rh;resultM=rm;resultS=rs;
+  } else {
+    const totA=a.h*3600+a.m*60+a.s,totB=b.h*3600+b.m*60+b.s;
+    let Bh,Bm,Bs,Ah,Am,As;
+    if(totB>totA){
+      addStep(box,'⚠ El tiempo ② es mayor que el ①. Intercambiamos y restamos:');
+      [Bh,Bm,Bs,Ah,Am,As]=[b.h,b.m,b.s,a.h,a.m,a.s];
+    } else {[Bh,Bm,Bs,Ah,Am,As]=[a.h,a.m,a.s,b.h,b.m,b.s];}
+    addStep(box,`Restamos: ${Bh} h ${pad(Bm)} min ${pad(Bs)} s  −  ${Ah} h ${pad(Am)} min ${pad(As)} s`);
+    addStep(box,'Empezamos por los segundos:');
+    addStep(box,`  Segundos: ${Bs} − ${As}`);
+    if(Bs<As){
+      addStep(box,`  ¡${Bs} es menor que ${As}! Pedimos 1 minuto prestado.`,'borrow');
+      if(Bm===0){
+        addStep(box,'  Pero no tenemos minutos (0 min). Pedimos 1 hora prestada: 1 h = 60 min.','borrow');
+        addStep(box,'  Nos quedamos con 59 min y pasamos 1 min a los segundos.','borrow');
+        Bh-=1;Bm=59;
+      } else {
+        addStep(box,`  Nos quedan ${Bm-1} min y pasamos 1 min a los segundos.`,'borrow');
+        Bm-=1;
+      }
+      addStep(box,`  1 minuto = 60 s → ahora tenemos ${Bs+60} − ${As}`,'borrow');
+      Bs+=60;
+    }
+    const rs=Bs-As;addStep(box,`  → ${rs} segundos`);
+    addStep(box,`  Minutos: ${Bm} − ${Am}`);
+    if(Bm<Am){
+      addStep(box,`  ¡${Bm} es menor que ${Am}! Pedimos 1 hora prestada.`,'borrow');
+      addStep(box,`  1 hora = 60 min → ahora tenemos ${Bm+60} − ${Am}`,'borrow');
+      Bm+=60;Bh-=1;
+    }
+    const rm=Bm-Am;addStep(box,`  → ${rm} minutos`);
+    addStep(box,`  Horas: ${Bh} − ${Ah} = ${Bh-Ah}`);const rh=Bh-Ah;
+    addStep(box,'');addStep(box,`Resultado: ${pad(rh)} h  ${pad(rm)} min  ${pad(rs)} s`,'highlight');
+    resultH=rh;resultM=rm;resultS=rs;
+  }
+  document.getElementById('sendClock').disabled=false;
+};
+
+document.getElementById('sendClock').onclick=()=>{
+  if(resultH<0)return;H=resultH;M=resultM;S=resultS;updateDigital();drawClock();
+};
+
+updateDigital();drawClock();
+</script>
+</body>
+</html>
